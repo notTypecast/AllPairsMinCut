@@ -1,8 +1,32 @@
 #include "include/all_pairs_min_cut.hpp"
 #include "include/preflow_push.hpp"
+#if defined(APMC_VISUAL)
+#include <string>
+#include <fstream>
+#include <boost/graph/graphviz.hpp>
+#endif
 
 namespace algo
 {
+#if defined(APMC_VISUAL)
+struct edge_writer
+{
+    edge_writer(SeparatorTree &st) : _st(st)
+    {
+        _edge_weight_map = boost::get(boost::edge_weight, st);
+    }
+
+    void operator()(std::ostream &out, const STEdge &e) const
+    {
+        out << "[label=\"" << _edge_weight_map[e].weight << "\"]";
+    }
+
+protected:
+    SeparatorTree &_st;
+    EdgeWeightMap _edge_weight_map;
+};
+#endif
+
 SeparatorTree all_pairs_min_cut(Graph &g)
 {
     SeparatorTree st;
@@ -10,7 +34,14 @@ SeparatorTree all_pairs_min_cut(Graph &g)
 
     boost::add_vertex(st);
 
-    for (int p = 1; p < boost::num_vertices(g); ++p)
+#if defined(APMC_VISUAL)
+    system("rm vis/*.dot vis/*.png");
+    std::ofstream dot_file("vis/st0.dot");
+    boost::write_graphviz(dot_file, st, boost::make_label_writer(boost::get(boost::vertex_index, st)), edge_writer(st));
+    dot_file.close();
+#endif
+
+    for (int p = 1; ; ++p)
     {
         Vertex k = locate_next(st, p);
         STEdge e = boost::add_edge(k, p, st).first;
@@ -20,9 +51,23 @@ SeparatorTree all_pairs_min_cut(Graph &g)
         weight_map[e].weight = algo::preflow_push(g, k, p, capacity, flow);;
         weight_map[e].min_cut = algo::get_min_cut(g, k, capacity, flow);
 
+#if defined(APMC_VISUAL)
+        std::ofstream dot_file("vis/st" + std::to_string(p) + ".dot");
+        boost::write_graphviz(dot_file, st, boost::make_label_writer(boost::get(boost::vertex_index, st)), edge_writer(st));
+        dot_file.close();
+#endif
+
+        if (p == boost::num_vertices(g) - 1)
+        {
+            break;
+        }
+
         boost::add_vertex(st);
     }
 
+#if defined(APMC_VISUAL)
+    system("python3 comp.py");
+#endif
     return st;
 }
 
